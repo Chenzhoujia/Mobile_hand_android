@@ -17,6 +17,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
 
 import com.wonderkiln.camerakit.CameraListener;
 import com.wonderkiln.camerakit.CameraView;
@@ -55,10 +56,14 @@ public class MainActivity extends AppCompatActivity {
         cameraView = (CameraView) findViewById(R.id.camera);
         imageViewResult = (ImageView) findViewById(R.id.Result);
         mRecyclerView = (RecyclerView) findViewById(R.id.recyclerview);
-
         LinearLayoutManager linearLayoutManager = new LinearLayoutManager(this);
         linearLayoutManager.setOrientation(LinearLayoutManager.HORIZONTAL);
+
         mRecyclerView.setLayoutManager(linearLayoutManager);
+        ArrayList<Model> datas = initData();
+        HomeAdapter homeAdapter = new HomeAdapter(MainActivity.this, datas);
+        mRecyclerView.setAdapter(homeAdapter);
+
 
         try {
             tflite = new Interpreter(loadModelFile());
@@ -80,5 +85,33 @@ public class MainActivity extends AppCompatActivity {
     public void close() {
         tflite.close();
         tflite = null;
+    }
+    protected ArrayList<Model> initData() {
+        ArrayList<Model> mDatas = new ArrayList<>();
+        for (int i = 0; i < 11; i++) {
+            Model model = new Model();
+            model.type = i;
+            model.resId = resIds[i];
+            mDatas.add(model);
+        }
+        return  mDatas;
+    }
+    private int[] resIds= {R.drawable.ic_launcher, R.drawable.bossk, R.drawable.crayon, R.drawable.cubist,
+            R.drawable.denoised_starry, R.drawable.feathers, R.drawable.ink, R.drawable.mosaic, R.drawable.scream,
+            R.drawable.udnie, R.drawable.wave};
+    public class Model {
+        public int type;
+        public int resId;
+    }
+    @Override
+    protected void onResume() {
+        super.onResume();
+        cameraView.start();
+    }
+
+    @Override
+    protected void onPause() {
+        cameraView.stop();
+        super.onPause();
     }
 }
