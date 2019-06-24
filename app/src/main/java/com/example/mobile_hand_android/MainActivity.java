@@ -2,7 +2,10 @@ package com.example.mobile_hand_android;
 
 import android.app.Activity;
 import android.content.res.AssetFileDescriptor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
+import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 
@@ -11,10 +14,15 @@ import org.tensorflow.lite.Interpreter;
 import android.support.v4.os.TraceCompat;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
+import android.view.View;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
@@ -27,18 +35,26 @@ public class MainActivity extends AppCompatActivity {
     private CameraView cameraView;
     private ImageView imageViewResult;
 
-    private static final int INPUT_SIZE = 256;
     private int[] intValues;
     private int[] intValues_tip;
     private float[] floatValues;
     private float[] floatValues_tip;
+    private float[][][][] labelProbArray = null;
 
     private static final String INPUT_NAME = "input";
     private static final String OUTPUT_NAME = "output_new";
-    private static final String MODEL_PATH = "graph.lite";
+    private static final String MODEL_PATH = "model-4200.lite";
+    /** Dimensions of inputs. */
+    private static final int DIM_BATCH_SIZE = 1;
+    private static final int DIM_PIXEL_SIZE = 3;
+    static final int DIM_IMG_SIZE_X = 32;
+    static final int DIM_IMG_SIZE_Y = 32;
+    private static final int INPUT_SIZE = 256;
+
+    private static final String TAG = "Chen Debug info";
 
     private Interpreter tflite;
-
+    private ByteBuffer imgData = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,6 +65,12 @@ public class MainActivity extends AppCompatActivity {
         intValues_tip = new int[32 * 32];
         floatValues = new float[INPUT_SIZE * INPUT_SIZE * 3];
         floatValues_tip = new float[32 * 32 * 3];
+        labelProbArray = new float[1][32][32][2];
+        imgData =
+                ByteBuffer.allocateDirect(
+                        4 * DIM_BATCH_SIZE * DIM_IMG_SIZE_X * DIM_IMG_SIZE_Y * DIM_PIXEL_SIZE);
+        imgData.order(ByteOrder.nativeOrder());
+
         final Matrix matrix=new Matrix();
         matrix.postScale(1f, 1f);
         matrix.postRotate(90);
@@ -64,12 +86,48 @@ public class MainActivity extends AppCompatActivity {
         HomeAdapter homeAdapter = new HomeAdapter(MainActivity.this, datas);
         mRecyclerView.setAdapter(homeAdapter);
 
+        cameraView.setCameraListener(new CameraListener() {
+            @Override
+            public void onPictureTaken(byte[] picture) {
+                super.onPictureTaken(picture);
 
-        try {
-            tflite = new Interpreter(loadModelFile());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+                Bitmap bitmap0 = BitmapFactory.decodeByteArray(picture, 0, picture.length);
+                Bitmap bitmap = Bitmap.createScaledBitmap(bitmap0, 32, 32, false);
+                bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix,true);
+                float time0 = (float) System.currentTimeMillis();
+                convertBitmapToByteBuffer(bitmap);
+                tflite.run(imgData, labelProbArray);
+                //Bitmap bitmap_out = stylizeImage(bitmap);
+                float time1 = (float) System.currentTimeMillis();
+
+                //bitmap_out = Bitmap.createScaledBitmap(bitmap_out, bitmap0.getWidth(), bitmap0.getHeight(), false);
+//                imageViewResult.setImageBitmap(bitmap_out);
+//                imageViewResult.setVisibility(View.VISIBLE);
+                Log.i(TAG, "Time before: " + time0);
+                Log.i(TAG, "Time after: " + time1);
+            }
+        });
+
+        homeAdapter.buttonSetOnclick(new HomeAdapter.ButtonInterface() {
+            @Override
+            public void onclick(View view, MainActivity.Model model) {
+
+                Toast.makeText(MainActivity.this, "更换模型中", Toast.LENGTH_SHORT).show();
+                if (model.type == 0){
+                    cameraView.toggleFacing();
+//                  imageViewResult.setVisibility(View.GONE);
+                }
+                else {
+                    try {
+                        tflite = new Interpreter(loadModelFile());
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    cameraView.captureImage();
+                }
+            }
+        });
+        cameraView.setCropOutput(true);
     }
 
     /** Memory-map the model file in Assets. */
@@ -113,5 +171,35 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         cameraView.stop();
         super.onPause();
+    }
+    /** Writes Image data into a {@code ByteBuffer}. */
+    private void convertBitmapToByteBuffer(Bitmap bitmap) {
+        long startTime = SystemClock.uptimeMillis();
+
+        if (imgData == null) {
+            return;
+        }
+        imgData.rewind();
+        bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
+        int pixel = 0;
+        for (int i = 0; i < DIM_IMG_SIZE_X; ++i) {
+            for (int j = 0; j < DIM_IMG_SIZE_Y; ++j) {
+                final int val = intValues[pixel++];
+                float r = ((val >> 16) & 0xFF),g = ((val >> 8) & 0xFF),b = ((val) & 0xFF);
+                r = r/255.f-0.5f;
+                g = g/255.f-0.5f;
+                b = b/255.f-0.5f;
+                imgData.putFloat(r);
+                imgData.putFloat(g);
+                imgData.putFloat(b);
+
+                floatValues[(i*DIM_IMG_SIZE_X+j) * 3 + 0] = r;
+                floatValues[(i*DIM_IMG_SIZE_X+j) * 3 + 1] = g;
+                floatValues[(i*DIM_IMG_SIZE_X+j) * 3 + 2] = b;
+            }
+        }
+
+        long endTime = SystemClock.uptimeMillis();
+        Log.d(TAG, "Timecost to put values into ByteBuffer: " + Long.toString(endTime - startTime));
     }
 }
