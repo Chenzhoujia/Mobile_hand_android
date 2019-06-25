@@ -1,6 +1,5 @@
 package com.example.mobile_hand_android;
 
-import android.app.Activity;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -9,9 +8,8 @@ import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 
-import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
 import org.tensorflow.lite.Interpreter;
-import android.support.v4.os.TraceCompat;
+
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
@@ -19,8 +17,12 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
@@ -44,6 +46,9 @@ public class MainActivity extends AppCompatActivity {
     private static final String INPUT_NAME = "input";
     private static final String OUTPUT_NAME = "output_new";
     private static final String MODEL_PATH = "model-4200.lite";
+    private static final String TEST_DATA_PATH = "drawable/test_image.txt";
+    private float[][] test_data = null;
+
     /** Dimensions of inputs. */
     private static final int DIM_BATCH_SIZE = 1;
     private static final int DIM_PIXEL_SIZE = 3;
@@ -58,6 +63,11 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        //准备测试数据
+        InputStream inputStream = getResources().openRawResource(R.raw.test_image);
+        test_data = new float[15][784];
+        getString(inputStream);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -66,6 +76,7 @@ public class MainActivity extends AppCompatActivity {
         floatValues = new float[INPUT_SIZE * INPUT_SIZE * 3];
         floatValues_tip = new float[32 * 32 * 3];
         labelProbArray = new float[1][32][32][2];
+
         imgData =
                 ByteBuffer.allocateDirect(
                         4 * DIM_BATCH_SIZE * DIM_IMG_SIZE_X * DIM_IMG_SIZE_Y * DIM_PIXEL_SIZE);
@@ -201,5 +212,28 @@ public class MainActivity extends AppCompatActivity {
 
         long endTime = SystemClock.uptimeMillis();
         Log.d(TAG, "Timecost to put values into ByteBuffer: " + Long.toString(endTime - startTime));
+    }
+    private void getString(InputStream inputStream) {
+        InputStreamReader inputStreamReader = null;
+        try {
+            inputStreamReader = new InputStreamReader(inputStream, "gbk");
+        } catch (UnsupportedEncodingException e1) {
+            e1.printStackTrace();
+        }
+        BufferedReader reader = new BufferedReader(inputStreamReader);
+        String line;
+        int j=0;
+        try {
+            while ((line = reader.readLine()) != null) {
+                String[] strArray = null;
+                strArray = line.split(",");
+                for(int i=0;i<784;i++){
+                    test_data[j][i] = Float.parseFloat(strArray[i]);
+                }
+                j++;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
