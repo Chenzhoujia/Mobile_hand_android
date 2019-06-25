@@ -41,11 +41,11 @@ public class MainActivity extends AppCompatActivity {
     private int[] intValues_tip;
     private float[] floatValues;
     private float[] floatValues_tip;
-    private float[][][][] labelProbArray = null;
+    private float[][] labelProbArray = null;
 
     private static final String INPUT_NAME = "input";
     private static final String OUTPUT_NAME = "output_new";
-    private static final String MODEL_PATH = "model-4200.lite";
+    private static final String MODEL_PATH = "ae-basic.lite";
     private static final String TEST_DATA_PATH = "drawable/test_image.txt";
     private float[][] test_data = null;
 
@@ -75,11 +75,11 @@ public class MainActivity extends AppCompatActivity {
         intValues_tip = new int[32 * 32];
         floatValues = new float[INPUT_SIZE * INPUT_SIZE * 3];
         floatValues_tip = new float[32 * 32 * 3];
-        labelProbArray = new float[1][32][32][2];
+        labelProbArray = new float[15][784];
 
         imgData =
                 ByteBuffer.allocateDirect(
-                        4 * DIM_BATCH_SIZE * DIM_IMG_SIZE_X * DIM_IMG_SIZE_Y * DIM_PIXEL_SIZE);
+                        4 * 15 * 784);
         imgData.order(ByteOrder.nativeOrder());
 
         final Matrix matrix=new Matrix();
@@ -106,7 +106,8 @@ public class MainActivity extends AppCompatActivity {
                 Bitmap bitmap = Bitmap.createScaledBitmap(bitmap0, 32, 32, false);
                 bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix,true);
                 float time0 = (float) System.currentTimeMillis();
-                convertBitmapToByteBuffer(bitmap);
+                //convertBitmapToByteBuffer(bitmap);
+                convertarrayToByteBuffer();
                 tflite.run(imgData, labelProbArray);
                 //Bitmap bitmap_out = stylizeImage(bitmap);
                 float time1 = (float) System.currentTimeMillis();
@@ -212,6 +213,19 @@ public class MainActivity extends AppCompatActivity {
 
         long endTime = SystemClock.uptimeMillis();
         Log.d(TAG, "Timecost to put values into ByteBuffer: " + Long.toString(endTime - startTime));
+    }
+    /** Writes Image data into a {@code ByteBuffer}. */
+    private void convertarrayToByteBuffer() {
+        if (imgData == null) {
+            return;
+        }
+        imgData.rewind();
+        for (int i = 0; i < 15; ++i) {
+            for (int j = 0; j < 784; ++j) {
+                final float val = test_data[i][j];
+                imgData.putFloat(val);
+            }
+        }
     }
     private void getString(InputStream inputStream) {
         InputStreamReader inputStreamReader = null;
