@@ -41,13 +41,13 @@ public class MainActivity extends AppCompatActivity {
     private int[] intValues_tip;
     private float[] floatValues;
     private float[] floatValues_tip;
-    private float[][] labelProbArray = null;
+    private float[][][][] labelProbArray = null;
 
     private static final String INPUT_NAME = "input";
     private static final String OUTPUT_NAME = "output_new";
-    private static final String MODEL_PATH = "ae-basic.lite";
+    private static final String MODEL_PATH = "model-9850.lite";
     private static final String TEST_DATA_PATH = "drawable/test_image.txt";
-    private float[][] test_data = null;
+    private float[][][] test_data = null;
 
     /** Dimensions of inputs. */
     private static final int DIM_BATCH_SIZE = 1;
@@ -65,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         //准备测试数据
         InputStream inputStream = getResources().openRawResource(R.raw.test_image);
-        test_data = new float[15][784];
+        test_data = new float[32][32][3];
         getString(inputStream);
 
         super.onCreate(savedInstanceState);
@@ -75,11 +75,11 @@ public class MainActivity extends AppCompatActivity {
         intValues_tip = new int[32 * 32];
         floatValues = new float[INPUT_SIZE * INPUT_SIZE * 3];
         floatValues_tip = new float[32 * 32 * 3];
-        labelProbArray = new float[15][784];
+        labelProbArray = new float[1][32][32][2];
 
         imgData =
                 ByteBuffer.allocateDirect(
-                        4 * 15 * 784);
+                        4 * 32*32*3);
         imgData.order(ByteOrder.nativeOrder());
 
         final Matrix matrix=new Matrix();
@@ -106,8 +106,7 @@ public class MainActivity extends AppCompatActivity {
                 Bitmap bitmap = Bitmap.createScaledBitmap(bitmap0, 32, 32, false);
                 bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix,true);
                 float time0 = (float) System.currentTimeMillis();
-                //convertBitmapToByteBuffer(bitmap);
-                convertarrayToByteBuffer();
+                convertBitmapToByteBuffer(bitmap);
                 tflite.run(imgData, labelProbArray);
                 //Bitmap bitmap_out = stylizeImage(bitmap);
                 float time1 = (float) System.currentTimeMillis();
@@ -204,10 +203,6 @@ public class MainActivity extends AppCompatActivity {
                 imgData.putFloat(r);
                 imgData.putFloat(g);
                 imgData.putFloat(b);
-
-                floatValues[(i*DIM_IMG_SIZE_X+j) * 3 + 0] = r;
-                floatValues[(i*DIM_IMG_SIZE_X+j) * 3 + 1] = g;
-                floatValues[(i*DIM_IMG_SIZE_X+j) * 3 + 2] = b;
             }
         }
 
@@ -220,10 +215,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         imgData.rewind();
-        for (int i = 0; i < 15; ++i) {
-            for (int j = 0; j < 784; ++j) {
-                final float val = test_data[i][j];
-                imgData.putFloat(val);
+        for(int i=0;i<32;i++){
+            for(int j=0;j<32;j++){
+                for(int k=0;k<3;k++) {
+                    final float val = test_data[i][j][k];
+                    imgData.putFloat(val);
+                }
             }
         }
     }
@@ -236,16 +233,20 @@ public class MainActivity extends AppCompatActivity {
         }
         BufferedReader reader = new BufferedReader(inputStreamReader);
         String line;
-        int j=0;
+        int step =0;
         try {
-            while ((line = reader.readLine()) != null) {
-                String[] strArray = null;
-                strArray = line.split(",");
-                for(int i=0;i<784;i++){
-                    test_data[j][i] = Float.parseFloat(strArray[i]);
+            line = reader.readLine();
+            String[] strArray = null;
+            strArray = line.split(",");
+            for(int i=0;i<32;i++){
+                for(int j=0;j<32;j++){
+                    for(int k=0;k<3;k++) {
+                        test_data[i][j][k] = Float.parseFloat(strArray[step]);
+                        step = step+1;
+                    }
                 }
-                j++;
             }
+
         } catch (IOException e) {
             e.printStackTrace();
         }
